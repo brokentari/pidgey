@@ -1,0 +1,78 @@
+name: Rust
+on: [push, pull_request]
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    name: test
+    runs-on: ubuntu-latest
+    # services:
+    #   postgres:
+    #     image: postgres:latest
+    #     env:
+    #       POSTGRES_USER: postgres
+    #       POSTGRES_PASSWORD: password
+    #       POSTGRES: newsletter
+    #     ports:
+    #       - 5432:5432
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: run tests
+        run: cargo test
+  fmt:
+    name: format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: enforce formatting
+        run: cargo fmt --check
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    # services:
+    #   postgres:
+    #     image: postgres:latest
+    #     env:
+    #       POSTGRES_USER: postgres
+    #       POSTGRES_PASSWORD: password
+    #       POSTGRES: newsletter
+    #     ports:
+    #       - 5432:5432
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: linting
+        run: cargo clippy -- -D warnings
+  coverage:
+    name: code coverage
+    runs-on: ubuntu-latest
+    # services:
+    #   postgres:
+    #     image: postgres:latest
+    #     env:
+    #       POSTGRES_USER: postgres
+    #       POSTGRES_PASSWORD: password
+    #       POSTGRES: newsletter
+    #     ports:
+    #       - 5432:5432
+    steps:
+      - uses: actions/checkout@v3
+      - name: install dependencies
+        run: sudo apt-get update && sudo apt-get install libpq-dev postgresql postgresql-client -y
+      - name: install tarpaulin
+        run: cargo install cargo-tarpaulin
+      - name: generate code coverage
+        run: |
+          cargo tarpaulin --verbose --workspace
+
+          
