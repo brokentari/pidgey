@@ -73,9 +73,10 @@ jobs:
         run: cargo install cargo-tarpaulin
       - name: generate code coverage
         run: |
-          cargo tarpaulin --verbose --workspace
+          cargo tarpaulin --verbose --workspace --out Lcov
       - uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets. GITHUB_TOKEN }}
+          path-to-lcov: './lcov.info'
 
           
