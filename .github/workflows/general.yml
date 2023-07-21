@@ -7,19 +7,26 @@ jobs:
   test:
     name: test
     runs-on: ubuntu-latest
-    # services:
-    #   postgres:
-    #     image: postgres:latest
-    #     env:
-    #       POSTGRES_USER: postgres
-    #       POSTGRES_PASSWORD: password
-    #       POSTGRES: newsletter
-    #     ports:
-    #       - 5432:5432
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES: newsletter
+        ports:
+          - 9876:5432
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: migrate database
+        run: |
+          cargo install sqlx-cli --no-default-features --features rustls,postgres
+          SKIP_DOCKER=true ./scripts/init_db.sh
+      - name: check sqlx-data.json is up-to-date
+        run: |
+          cargo sqlx prepare --check -- --bin pidgeot
       - name: run tests
         run: cargo test
   fmt:
@@ -36,41 +43,49 @@ jobs:
   clippy:
     name: clippy
     runs-on: ubuntu-latest
-    # services:
-    #   postgres:
-    #     image: postgres:latest
-    #     env:
-    #       POSTGRES_USER: postgres
-    #       POSTGRES_PASSWORD: password
-    #       POSTGRES: newsletter
-    #     ports:
-    #       - 5432:5432
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES: newsletter
+        ports:
+          - 9876:5432
     steps:
       - uses: actions/checkout@v3
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
       - uses: Swatinem/rust-cache@v2
+      - name: migrate database
+        run: |
+          cargo install sqlx-cli --no-default-features --features rustls,postgres
+          SKIP_DOCKER=true ./scripts/init_db.sh
       - name: linting
         run: cargo clippy -- -D warnings
   coverage:
     name: code coverage
     runs-on: ubuntu-latest
-    # services:
-    #   postgres:
-    #     image: postgres:latest
-    #     env:
-    #       POSTGRES_USER: postgres
-    #       POSTGRES_PASSWORD: password
-    #       POSTGRES: newsletter
-    #     ports:
-    #       - 5432:5432
+    services:
+      postgres:
+        image: postgres:latest
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES: newsletter
+        ports:
+          - 9876:5432
     steps:
       - uses: actions/checkout@v3
       - name: install dependencies
         run: sudo apt-get update && sudo apt-get install libpq-dev postgresql postgresql-client -y
       - name: install tarpaulin
         run: cargo install cargo-tarpaulin
+      - name: migrate database
+        run: |
+          cargo install sqlx-cli --no-default-features --features rustls,postgres
+          SKIP_DOCKER=true ./scripts/init_db.sh
       - name: generate code coverage
         run: |
           cargo tarpaulin --verbose --workspace --out Lcov
