@@ -26,7 +26,7 @@ jobs:
           SKIP_DOCKER=true ./scripts/init_db.sh
       - name: check sqlx-data.json is up-to-date
         run: |
-          cargo sqlx prepare --check -- --bin pidgeot
+          cargo sqlx prepare --check -- --bin pidgey
       - name: run tests
         run: cargo test
   fmt:
