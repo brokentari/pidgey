@@ -1,6 +1,7 @@
 use once_cell::sync::Lazy;
 use pidgey::configuration::{get_configuration, DatabaseSettings};
 use pidgey::telemetry::{get_subscriber, init_subscriber};
+use secrecy::ExposeSecret;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
 use uuid::Uuid;
@@ -11,7 +12,6 @@ static TRACING: Lazy<()> = Lazy::new(|| {
     if std::env::var("TEST_LOG").is_ok() {
         let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::stdout);
         init_subscriber(subscriber);
-
     } else {
         let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::sink);
         init_subscriber(subscriber);
@@ -45,7 +45,7 @@ async fn subscribe_returns_200_for_valid_form_data() {
     let config = get_configuration().expect("failed to get config");
     let connection_string = config.database.connection_string();
 
-    let mut connection = PgConnection::connect(&connection_string)
+    let mut connection = PgConnection::connect(&connection_string.expose_secret())
         .await
         .expect("failed to connect to postgres");
 
@@ -123,16 +123,17 @@ async fn spawn_app() -> TestApp {
 }
 
 pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
-    let mut connection = PgConnection::connect(&config.connection_string_without_db())
-        .await
-        .expect("failed to connect to postgres");
+    let mut connection =
+        PgConnection::connect(&config.connection_string_without_db().expose_secret())
+            .await
+            .expect("failed to connect to postgres");
 
     connection
         .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
         .await
         .expect("failed to create database");
 
-    let connection_pool = PgPool::connect(&config.connection_string())
+    let connection_pool = PgPool::connect(&config.connection_string().expose_secret())
         .await
         .expect("failed to connect to postgres");
     sqlx::migrate!("./migrations")
