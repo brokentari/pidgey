@@ -1430,6 +1430,7 @@ dependencies = [
  "tracing-elastic-apm",
  "tracing-log",
  "tracing-subscriber",
+ "unicode-segmentation",
  "uuid",
 ]
 
