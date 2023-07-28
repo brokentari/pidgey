@@ -1,5 +1,6 @@
 use once_cell::sync::Lazy;
 use pidgey::configuration::{get_configuration, DatabaseSettings};
+use pidgey::email_client::EmailClient;
 use pidgey::telemetry::{get_subscriber, init_subscriber};
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::TcpListener;
@@ -63,33 +64,33 @@ async fn subscribe_returns_200_for_valid_form_data() {
     assert_eq!(saved.name, "bob jones");
 }
 
-// #[tokio::test]
-// async fn subscribe_returns_a_200_when_fields_are_present_but_empty() {
-//     let app = spawn_app().await;
-//     let client = reqwest::Client::new();
-//     let test_cases = vec![
-//         ("name=&email=bobjones%40gmail.com", "empty name"),
-//         ("name=Bob&email=", "empty email"),
-//         ("name=Bob&email=definitely-not-an-email", "invalid email"),
-//     ];
-//
-//     for (body, description) in test_cases {
-//         let response = client
-//             .post(&format!("{}/subscriptions", &app.address))
-//             .header("Content-Type", "application/x-www-urlencoded")
-//             .body(body)
-//             .send()
-//             .await
-//             .expect("failed to execute request");
-//
-//         assert_eq!(
-//             20,
-//             response.status().as_u16(),
-//             "the api did not return a 200 OK when the payload was {}.",
-//             description
-//         )
-//     }
-// }
+#[tokio::test]
+async fn subscribe_returns_a_400_when_fields_are_present_but_invalid() {
+    let app = spawn_app().await;
+    let client = reqwest::Client::new();
+    let test_cases = vec![
+        ("name=&email=bobjones%40gmail.com", "empty name"),
+        ("name=bob&email=", "empty email"),
+        ("name=Bob&email=definitely-not-an-email", "invalid email"),
+    ];
+
+    for (body, description) in test_cases {
+        let response = client
+            .post(&format!("{}/subscriptions", &app.address))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .expect("failed to execute request");
+
+        assert_eq!(
+            400,
+            response.status().as_u16(),
+            "the api did not return a 400 Bad Request when the payload was {}.",
+            description
+        )
+    }
+}
 
 #[tokio::test]
 async fn subscribe_returns_400_when_data_is_missing() {
@@ -127,12 +128,23 @@ async fn spawn_app() -> TestApp {
     config.database.database_name = Uuid::new_v4().to_string();
     let connection_pool = configure_database(&config.database).await;
 
+    let sender_email = config
+        .email_client
+        .sender()
+        .expect("invalid sender email address");
+    let email_client = EmailClient::new(
+        config.email_client.base_url,
+        sender_email,
+        config.email_client.authorization_token,
+    )
+    .expect("failed to create email client");
+
     let listener = TcpListener::bind("127.0.0.1:0").expect("failed to bind random port");
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{}", port);
 
-    let server =
-        pidgey::startup::run(listener, connection_pool.clone()).expect("failed to bind address");
+    let server = pidgey::startup::run(listener, connection_pool.clone(), email_client)
+        .expect("failed to bind address");
 
     let _ = tokio::spawn(server);
 
