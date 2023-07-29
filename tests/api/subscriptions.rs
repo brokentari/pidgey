@@ -1,23 +1,24 @@
 use crate::helpers::spawn_app;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, ResponseTemplate};
 
 #[tokio::test]
 async fn subscribe_returns_200_for_valid_form_data() {
-    let test_app = spawn_app().await;
-    let client = reqwest::Client::new();
-
+    let app = spawn_app().await;
     let body = "name=bob%20jones&email=bobjones%40gmail.com";
-    let response = client
-        .post(&format!("{}/subscriptions", test_app.address))
-        .header("Content-Type", "application/x-www-form-urlencoded")
-        .body(body)
-        .send()
-        .await
-        .expect("failed to execute request");
+
+    Mock::given(path("/v3/mail/send"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&app.email_server)
+        .await;
+
+    let response = app.post_subscriptions(body.into()).await;
 
     assert_eq!(200, response.status().as_u16());
 
     let saved = sqlx::query!("SELECT email, name FROM subscriptions")
-        .fetch_one(&test_app.db_pool)
+        .fetch_one(&app.db_pool)
         .await
         .expect("failed to fetch saved subscription");
 
@@ -28,7 +29,6 @@ async fn subscribe_returns_200_for_valid_form_data() {
 #[tokio::test]
 async fn subscribe_returns_a_400_when_fields_are_present_but_invalid() {
     let app = spawn_app().await;
-    let client = reqwest::Client::new();
     let test_cases = vec![
         ("name=&email=bobjones%40gmail.com", "empty name"),
         ("name=bob&email=", "empty email"),
@@ -36,13 +36,7 @@ async fn subscribe_returns_a_400_when_fields_are_present_but_invalid() {
     ];
 
     for (body, description) in test_cases {
-        let response = client
-            .post(&format!("{}/subscriptions", &app.address))
-            .header("Content-Type", "application/x-www-form-urlencoded")
-            .body(body)
-            .send()
-            .await
-            .expect("failed to execute request");
+        let response = app.post_subscriptions(body.into()).await;
 
         assert_eq!(
             400,
@@ -81,3 +75,19 @@ async fn subscribe_returns_400_when_data_is_missing() {
         );
     }
 }
+
+#[tokio::test]
+async fn subscribe_sends_a_confirmation_email_for_valid_data() {
+    let app = spawn_app().await;
+    let body = "name=bob%20jones&email=bobjones%40gmail.com";
+
+    Mock::given(path("/v3/mail/send"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&app.email_server)
+        .await;
+
+    app.post_subscriptions(body.into()).await;
+}
+
