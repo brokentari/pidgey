@@ -38,11 +38,11 @@ impl EmailClient {
             .join("/v3/mail/send")
             .expect("failed to join url");
         let request_body = SendEmailRequest {
-            personalizations: Personalizations {
+            personalizations: vec![Personalizations {
                 to: vec![EmailAddress {
                     email: recipient.as_ref(),
                 }],
-            },
+            }],
             from: EmailAddress {
                 email: self.sender.as_ref(),
             },
@@ -58,6 +58,10 @@ impl EmailClient {
                 },
             ],
         };
+
+        println!("{:?}", serde_json::to_string(&request_body));
+        println!("{}", self.authorization_token.expose_secret());
+
         self.http_client
             .post(url)
             .header(
@@ -73,25 +77,25 @@ impl EmailClient {
     }
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug)]
 struct SendEmailRequest<'a> {
-    personalizations: Personalizations<'a>,
+    personalizations: Vec<Personalizations<'a>>,
     from: EmailAddress<'a>,
     subject: &'a str,
     content: Vec<EmailContent<'a>>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug)]
 struct Personalizations<'a> {
     to: Vec<EmailAddress<'a>>,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug)]
 struct EmailAddress<'a> {
     email: &'a str,
 }
 
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, Debug)]
 struct EmailContent<'a> {
     r#type: &'a str,
     value: &'a str,
